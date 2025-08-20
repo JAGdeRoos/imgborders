@@ -118,32 +118,6 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   g_pHyprOpenGL->m_renderData.discardMode = DISCARD_ALPHA;
   g_pHyprOpenGL->m_renderData.discardOpacity = 0;
 
-  // Corners
-
-  if (m_tex_tr) {
-    const CBox box_tr = {{box.x + box.width - BORDER_RIGHT, box.y},
-                         {BORDER_RIGHT, BORDER_TOP}};
-        g_pHyprOpenGL->renderTexture(m_tex_tr, box_tr, {.a = a});
-  }
-
-  if (m_tex_tl) {
-    const CBox box_tl = {box.pos(), {BORDER_LEFT, BORDER_TOP}};
-      g_pHyprOpenGL->renderTexture(m_tex_tl, box_tl, {.a = a});
-  }
-
-  if (m_tex_bl) {
-    const CBox box_bl = {{box.x, box.y + box.height - BORDER_BOTTOM},
-                         {BORDER_LEFT, BORDER_BOTTOM}};
-      g_pHyprOpenGL->renderTexture(m_tex_bl, box_bl, {.a = a});
-  }
-
-  if (m_tex_br) {
-    const CBox box_br = {
-        {box.x + box.width - BORDER_RIGHT, box.y + box.height - BORDER_BOTTOM},
-        {BORDER_RIGHT, BORDER_BOTTOM}};
-      g_pHyprOpenGL->renderTexture(m_tex_br, box_br, {.a = a});
-  }
-
 
   // Edges
 
@@ -187,6 +161,31 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
       g_pHyprOpenGL->renderTexture(m_tex_r, box_r, 
               {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
   }
+
+  // Corners
+
+  if (m_tex_bl) {
+    const CBox box_bl = {{box.x, box.y + box.height - BORDER_BOTTOM},
+                         {BORDER_LEFT, BORDER_BOTTOM}};
+      g_pHyprOpenGL->renderTexture(m_tex_bl, box_bl, {.a = a});
+  }
+  if (m_tex_br) {
+    const CBox box_br = {
+        {box.x + box.width - BORDER_RIGHT, box.y + box.height - BORDER_BOTTOM},
+        {BORDER_RIGHT, BORDER_BOTTOM}};
+      g_pHyprOpenGL->renderTexture(m_tex_br, box_br, {.a = a});
+  }
+  if (m_tex_tr) {
+    const CBox box_tr = {{box.x + box.width - BORDER_RIGHT, box.y},
+                         {BORDER_RIGHT, BORDER_TOP}};
+        g_pHyprOpenGL->renderTexture(m_tex_tr, box_tr, {.a = a});
+  }
+
+  if (m_tex_tl) {
+    const CBox box_tl = {box.pos(), {BORDER_LEFT, BORDER_TOP}};
+      g_pHyprOpenGL->renderTexture(m_tex_tl, box_tl, {.a = a});
+  }
+
 
   // Restore previous values
 
