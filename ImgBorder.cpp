@@ -120,28 +120,28 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
 
   // Corners
 
-  if (m_tex_tl) { // Draw top-left FIRST
-    const CBox box_tl = {box.pos(), {BORDER_LEFT, BORDER_TOP}};
-      g_pHyprOpenGL->renderTexture(m_tex_tl, box_tl, a);
-  }
-
-  if (m_tex_tr) { // Draw top-right SECOND
+  if (m_tex_tr) {
     const CBox box_tr = {{box.x + box.width - BORDER_RIGHT, box.y},
                          {BORDER_RIGHT, BORDER_TOP}};
         g_pHyprOpenGL->renderTexture(m_tex_tr, box_tr, a);
   }
-  
-  if (m_tex_br) { // Draw bottom-right FIRST
+
+  if (m_tex_tl) {
+    const CBox box_tl = {box.pos(), {BORDER_LEFT, BORDER_TOP}};
+      g_pHyprOpenGL->renderTexture(m_tex_tl, box_tl, a);
+  }
+
+  if (m_tex_bl) {
+    const CBox box_bl = {{box.x, box.y + box.height - BORDER_BOTTOM},
+                         {BORDER_LEFT, BORDER_BOTTOM}};
+      g_pHyprOpenGL->renderTexture(m_tex_bl, box_bl, a);
+  }
+
+  if (m_tex_br) {
     const CBox box_br = {
         {box.x + box.width - BORDER_RIGHT, box.y + box.height - BORDER_BOTTOM},
         {BORDER_RIGHT, BORDER_BOTTOM}};
       g_pHyprOpenGL->renderTexture(m_tex_br, box_br, a);
-  }
-
-  if (m_tex_bl) { // Draw bottom-left SECOND
-    const CBox box_bl = {{box.x, box.y + box.height - BORDER_BOTTOM},
-                         {BORDER_LEFT, BORDER_BOTTOM}};
-      g_pHyprOpenGL->renderTexture(m_tex_bl, box_bl, a);
   }
 
   // Edges
