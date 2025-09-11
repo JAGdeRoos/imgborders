@@ -53,19 +53,53 @@ private:
   std::string m_texSrc;
   int m_sizes[4];
   int m_insets[4];
+  int m_hor_sizes[4];
+  int m_ver_sizes[4];
+  int m_hor_placements[2];
+  int m_ver_placements[2];
+
   float m_scale;
   bool m_shouldSmooth;
   bool m_shouldBlurGlobal;
   bool m_shouldBlur;
 
+  //corners
   SP<CTexture> m_tex_tl;
   SP<CTexture> m_tex_tr;
   SP<CTexture> m_tex_br;
   SP<CTexture> m_tex_bl;
+
+  //sides
   SP<CTexture> m_tex_t;
   SP<CTexture> m_tex_r;
   SP<CTexture> m_tex_b;
   SP<CTexture> m_tex_l;
 
+  //sides split up for even more custom borders
+  
+  SP<CTexture> m_tex_tle;
+  SP<CTexture> m_tex_tlc;
+  SP<CTexture> m_tex_tme;
+  SP<CTexture> m_tex_trc;
+  SP<CTexture> m_tex_tre;
+
+  SP<CTexture> m_tex_rte;
+  SP<CTexture> m_tex_rtc;
+  SP<CTexture> m_tex_rme;
+  SP<CTexture> m_tex_rbc;
+  SP<CTexture> m_tex_rbe;
+  
+  SP<CTexture> m_tex_ble;
+  SP<CTexture> m_tex_blc;
+  SP<CTexture> m_tex_bme;
+  SP<CTexture> m_tex_brc;
+  SP<CTexture> m_tex_bre;
+
+  SP<CTexture> m_tex_lte;
+  SP<CTexture> m_tex_ltc;
+  SP<CTexture> m_tex_lme;
+  SP<CTexture> m_tex_lbc;
+  SP<CTexture> m_tex_lbe;
+  
   CBox m_bLastRelativeBox;
 };

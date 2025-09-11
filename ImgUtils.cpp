@@ -77,22 +77,47 @@ SP<CTexture> ImgUtils::load(const std::string &fullPath) {
   const auto CAIROFORMAT = cairo_image_surface_get_format(CAIROSURFACE);
   auto tex = makeShared<CTexture>();
 
+  // Debug: Log the Cairo format to help diagnose transparency issues
+  Debug::log(LOG, "ImgUtils loading {}, Cairo format: {}", fullPath, (int)CAIROFORMAT);
+  
   tex->allocate();
   tex->m_size = {cairo_image_surface_get_width(CAIROSURFACE),
                  cairo_image_surface_get_height(CAIROSURFACE)};
 
-  const GLint glIFormat =
-      CAIROFORMAT == CAIRO_FORMAT_RGB96F ? GL_RGB32F : GL_RGBA;
-  const GLint glFormat = CAIROFORMAT == CAIRO_FORMAT_RGB96F ? GL_RGB : GL_RGBA;
-  const GLint glType =
-      CAIROFORMAT == CAIRO_FORMAT_RGB96F ? GL_FLOAT : GL_UNSIGNED_BYTE;
+  // Improved format handling for transparency
+  GLint glIFormat, glFormat;
+  const GLint glType = CAIROFORMAT == CAIRO_FORMAT_RGB96F ? GL_FLOAT : GL_UNSIGNED_BYTE;
+  
+  switch (CAIROFORMAT) {
+    case CAIRO_FORMAT_ARGB32:
+    case CAIRO_FORMAT_A8:
+      glIFormat = GL_RGBA;
+      glFormat = GL_RGBA;
+      Debug::log(LOG, "ImgUtils: Loading with alpha channel support");
+      break;
+    case CAIRO_FORMAT_RGB24:
+      glIFormat = GL_RGB;
+      glFormat = GL_RGB;
+      Debug::log(WARN, "ImgUtils: Loading RGB image without alpha channel - transparency won't work");
+      break;
+    case CAIRO_FORMAT_RGB96F:
+      glIFormat = GL_RGB32F;
+      glFormat = GL_RGB;
+      break;
+    default:
+      Debug::log(WARN, "ImgUtils: Unknown Cairo format {}, defaulting to RGBA", (int)CAIROFORMAT);
+      glIFormat = GL_RGBA;
+      glFormat = GL_RGBA;
+      break;
+  }
 
   const auto DATA = cairo_image_surface_get_data(CAIROSURFACE);
   glBindTexture(GL_TEXTURE_2D, tex->m_texID);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-  if (CAIROFORMAT != CAIRO_FORMAT_RGB96F) {
+  // Only apply color swizzling for formats that need it
+  if (CAIROFORMAT == CAIRO_FORMAT_ARGB32 || CAIROFORMAT == CAIRO_FORMAT_RGB24) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
   }

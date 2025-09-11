@@ -108,6 +108,14 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
                               Hyprlang::INT{1});
   HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:blur",
                               Hyprlang::INT{0});
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:horsizes", 
+                              Hyprlang::STRING{""});
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:versizes", 
+                              Hyprlang::STRING{""});
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:horplacements", 
+                              Hyprlang::STRING{""});
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:verplacements", 
+                              Hyprlang::STRING{""});
 
   // Register callbacks
   static auto openWindow = HyprlandAPI::registerCallbackDynamic(

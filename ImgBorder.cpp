@@ -116,50 +116,233 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
 
   g_pHyprOpenGL->m_renderData.useNearestNeighbor = !m_shouldSmooth;
   g_pHyprOpenGL->m_renderData.discardMode = DISCARD_ALPHA;
-  g_pHyprOpenGL->m_renderData.discardOpacity = 0;
+  g_pHyprOpenGL->m_renderData.discardOpacity = 0.01f; // Discard only nearly transparent pixels
 
 
-  // Edges
+  // Enhanced 7-section edges
 
   g_pHyprOpenGL->m_renderData.primarySurfaceUVTopLeft = {0, 0};
-
   g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
-  if (m_tex_t != nullptr && m_tex_t->m_size.x != 0 && m_scale != 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x =
-        WIDTH_MID / (m_tex_t->m_size.x * m_scale);
+
+  // Calculate section widths and heights for positioning
+  const auto HOR_LEFT_LEFT = (float)m_hor_sizes[0] * m_scale;
+  const auto HOR_LEFT_RIGHT = (float)m_hor_sizes[1] * m_scale;
+  const auto HOR_RIGHT_LEFT = (float)m_hor_sizes[2] * m_scale;
+  const auto HOR_RIGHT_RIGHT = (float)m_hor_sizes[3] * m_scale;
+  
+  const auto VER_TOP_TOP = (float)m_ver_sizes[0] * m_scale;
+  const auto VER_TOP_BOT = (float)m_ver_sizes[1] * m_scale;
+  const auto VER_BOT_TOP = (float)m_ver_sizes[2] * m_scale;
+  const auto VER_BOT_BOT = (float)m_ver_sizes[3] * m_scale;
+
+  // Calculate middle section dimensions
+  const auto TOP_MID_WIDTH = WIDTH_MID - HOR_LEFT_LEFT - HOR_LEFT_RIGHT - HOR_RIGHT_LEFT - HOR_RIGHT_RIGHT;
+  const auto LEFT_MID_HEIGHT = HEIGHT_MID - VER_TOP_TOP - VER_TOP_BOT - VER_BOT_TOP - VER_BOT_BOT;
+
+  // TOP EDGE (7 sections with placement-based positioning)
+  const float top_start_x = box.x + BORDER_LEFT;
+  const float top_available_width = WIDTH_MID;
+  
+  // Calculate custom positions as percentages of available width
+  const float tlc_pos = (m_hor_placements[0] / 100.0f) * top_available_width;
+  const float trc_pos = (m_hor_placements[1] / 100.0f) * top_available_width;
+  
+  // Calculate tiling section widths based on custom positions
+  const float tle_width = tlc_pos;
+  const float tme_width = trc_pos - tlc_pos - HOR_LEFT_RIGHT;
+  const float tre_width = top_available_width - trc_pos - HOR_RIGHT_LEFT;
+  
+  float top_x = top_start_x;
+  
+  // Left edge tiling section
+  if (m_tex_tle && tle_width > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = tle_width / (m_tex_tle->m_size.x * m_scale);
+    const CBox box_tle = {{top_x, box.y}, {tle_width, BORDER_TOP}};
+    g_pHyprOpenGL->renderTexture(m_tex_tle, box_tle, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+  }
+  
+  // Left custom section at placement position
+  if (m_tex_tlc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_tlc = {{top_start_x + tlc_pos, box.y}, {HOR_LEFT_RIGHT, BORDER_TOP}};
+    g_pHyprOpenGL->renderTexture(m_tex_tlc, box_tlc, {.a = a, .blur = shouldBlur()});
+  }
+  
+  // Middle edge tiling section
+  if (m_tex_tme && tme_width > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = tme_width / (m_tex_tme->m_size.x * m_scale);
+    const CBox box_tme = {{top_start_x + tlc_pos + HOR_LEFT_RIGHT, box.y}, {tme_width, BORDER_TOP}};
+    g_pHyprOpenGL->renderTexture(m_tex_tme, box_tme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+  }
+  
+  // Right custom section at placement position
+  if (m_tex_trc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_trc = {{top_start_x + trc_pos, box.y}, {HOR_RIGHT_LEFT, BORDER_TOP}};
+    g_pHyprOpenGL->renderTexture(m_tex_trc, box_trc, {.a = a, .blur = shouldBlur()});
+  }
+  
+  // Right edge tiling section
+  if (m_tex_tre && tre_width > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = tre_width / (m_tex_tre->m_size.x * m_scale);
+    const CBox box_tre = {{top_start_x + trc_pos + HOR_RIGHT_LEFT, box.y}, {tre_width, BORDER_TOP}};
+    g_pHyprOpenGL->renderTexture(m_tex_tre, box_tre, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
   }
 
-  if (m_tex_t) {
-    const CBox box_t = {{box.x + BORDER_LEFT, box.y}, {WIDTH_MID, BORDER_TOP}};
-      g_pHyprOpenGL->renderTexture(m_tex_t, box_t, 
-              {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+  // RIGHT EDGE (7 sections with placement-based positioning)
+  const float right_start_y = box.y + BORDER_TOP;
+  const float right_available_height = HEIGHT_MID;
+  
+  // Calculate custom positions as percentages of available height
+  const float rtc_pos = (m_ver_placements[0] / 100.0f) * right_available_height;
+  const float rbc_pos = (m_ver_placements[1] / 100.0f) * right_available_height;
+  
+  // Calculate tiling section heights based on custom positions
+  const float rte_height = rtc_pos;
+  const float rme_height = rbc_pos - rtc_pos - VER_TOP_BOT;
+  const float rbe_height = right_available_height - rbc_pos - VER_BOT_TOP;
+  
+  // Top edge tiling section
+  if (m_tex_rte && rte_height > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = rte_height / (m_tex_rte->m_size.y * m_scale);
+    const CBox box_rte = {{box.x + box.width - BORDER_RIGHT, right_start_y}, {BORDER_RIGHT, rte_height}};
+    g_pHyprOpenGL->renderTexture(m_tex_rte, box_rte, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+  }
+  
+  // Top custom section at placement position
+  if (m_tex_rtc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_rtc = {{box.x + box.width - BORDER_RIGHT, right_start_y + rtc_pos}, {BORDER_RIGHT, VER_TOP_BOT}};
+    g_pHyprOpenGL->renderTexture(m_tex_rtc, box_rtc, {.a = a, .blur = shouldBlur()});
+  }
+  
+  // Middle edge tiling section
+  if (m_tex_rme && rme_height > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = rme_height / (m_tex_rme->m_size.y * m_scale);
+    const CBox box_rme = {{box.x + box.width - BORDER_RIGHT, right_start_y + rtc_pos + VER_TOP_BOT}, {BORDER_RIGHT, rme_height}};
+    g_pHyprOpenGL->renderTexture(m_tex_rme, box_rme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+  }
+  
+  // Bottom custom section at placement position
+  if (m_tex_rbc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_rbc = {{box.x + box.width - BORDER_RIGHT, right_start_y + rbc_pos}, {BORDER_RIGHT, VER_BOT_TOP}};
+    g_pHyprOpenGL->renderTexture(m_tex_rbc, box_rbc, {.a = a, .blur = shouldBlur()});
+  }
+  
+  // Bottom edge tiling section
+  if (m_tex_rbe && rbe_height > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = rbe_height / (m_tex_rbe->m_size.y * m_scale);
+    const CBox box_rbe = {{box.x + box.width - BORDER_RIGHT, right_start_y + rbc_pos + VER_BOT_TOP}, {BORDER_RIGHT, rbe_height}};
+    g_pHyprOpenGL->renderTexture(m_tex_rbe, box_rbe, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
   }
 
-  if (m_tex_b) {
-    const CBox box_b = {
-        {box.x + BORDER_LEFT, box.y + box.height - BORDER_BOTTOM},
-        {WIDTH_MID, BORDER_BOTTOM}};
-      g_pHyprOpenGL->renderTexture(m_tex_b, box_b, 
-              {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+  // BOTTOM EDGE (7 sections with placement-based positioning)
+  const float bottom_start_x = box.x + BORDER_LEFT;
+  const float bottom_available_width = WIDTH_MID;
+  
+  // Calculate custom positions as percentages of available width (same as top edge)
+  const float blc_pos = (m_hor_placements[0] / 100.0f) * bottom_available_width;
+  const float brc_pos = (m_hor_placements[1] / 100.0f) * bottom_available_width;
+  
+  // Calculate tiling section widths based on custom positions
+  const float ble_width = blc_pos;
+  const float bme_width = brc_pos - blc_pos - HOR_LEFT_RIGHT;
+  const float bre_width = bottom_available_width - brc_pos - HOR_RIGHT_LEFT;
+  
+  // Left edge tiling section
+  if (m_tex_ble && ble_width > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = ble_width / (m_tex_ble->m_size.x * m_scale);
+    const CBox box_ble = {{bottom_start_x, box.y + box.height - BORDER_BOTTOM}, {ble_width, BORDER_BOTTOM}};
+    g_pHyprOpenGL->renderTexture(m_tex_ble, box_ble, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+  }
+  
+  // Left custom section at placement position
+  if (m_tex_blc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_blc = {{bottom_start_x + blc_pos, box.y + box.height - BORDER_BOTTOM}, {HOR_LEFT_RIGHT, BORDER_BOTTOM}};
+    g_pHyprOpenGL->renderTexture(m_tex_blc, box_blc, {.a = a, .blur = shouldBlur()});
+  }
+  
+  // Middle edge tiling section
+  if (m_tex_bme && bme_width > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = bme_width / (m_tex_bme->m_size.x * m_scale);
+    const CBox box_bme = {{bottom_start_x + blc_pos + HOR_LEFT_RIGHT, box.y + box.height - BORDER_BOTTOM}, {bme_width, BORDER_BOTTOM}};
+    g_pHyprOpenGL->renderTexture(m_tex_bme, box_bme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+  }
+  
+  // Right custom section at placement position
+  if (m_tex_brc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_brc = {{bottom_start_x + brc_pos, box.y + box.height - BORDER_BOTTOM}, {HOR_RIGHT_LEFT, BORDER_BOTTOM}};
+    g_pHyprOpenGL->renderTexture(m_tex_brc, box_brc, {.a = a, .blur = shouldBlur()});
+  }
+  
+  // Right edge tiling section
+  if (m_tex_bre && bre_width > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = bre_width / (m_tex_bre->m_size.x * m_scale);
+    const CBox box_bre = {{bottom_start_x + brc_pos + HOR_RIGHT_LEFT, box.y + box.height - BORDER_BOTTOM}, {bre_width, BORDER_BOTTOM}};
+    g_pHyprOpenGL->renderTexture(m_tex_bre, box_bre, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
   }
 
-  g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
-  if (m_tex_l != nullptr && m_tex_l->m_size.y != 0 && m_scale != 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y =
-        HEIGHT_MID / (m_tex_l->m_size.y * m_scale);
+  // LEFT EDGE (7 sections with placement-based positioning)
+  const float left_start_y = box.y + BORDER_TOP;
+  const float left_available_height = HEIGHT_MID;
+  
+  // Calculate custom positions as percentages of available height (same as right edge)
+  const float ltc_pos = (m_ver_placements[0] / 100.0f) * left_available_height;
+  const float lbc_pos = (m_ver_placements[1] / 100.0f) * left_available_height;
+  
+  // Calculate tiling section heights based on custom positions
+  const float lte_height = ltc_pos;
+  const float lme_height = lbc_pos - ltc_pos - VER_TOP_BOT;
+  const float lbe_height = left_available_height - lbc_pos - VER_BOT_TOP;
+  
+  // Top edge tiling section
+  if (m_tex_lte && lte_height > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = lte_height / (m_tex_lte->m_size.y * m_scale);
+    const CBox box_lte = {{box.x, left_start_y}, {BORDER_LEFT, lte_height}};
+    g_pHyprOpenGL->renderTexture(m_tex_lte, box_lte, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
   }
-
-  if (m_tex_l) {
-    const CBox box_l = {{box.x, box.y + BORDER_TOP}, {BORDER_LEFT, HEIGHT_MID}};
-      g_pHyprOpenGL->renderTexture(m_tex_l, box_l, 
-              {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+  
+  // Top custom section at placement position
+  if (m_tex_ltc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_ltc = {{box.x, left_start_y + ltc_pos}, {BORDER_LEFT, VER_TOP_BOT}};
+    g_pHyprOpenGL->renderTexture(m_tex_ltc, box_ltc, {.a = a, .blur = shouldBlur()});
   }
-
-  if (m_tex_r) {
-    const CBox box_r = {{box.x + box.width - BORDER_RIGHT, box.y + BORDER_TOP},
-                        {BORDER_RIGHT, HEIGHT_MID}};
-      g_pHyprOpenGL->renderTexture(m_tex_r, box_r, 
-              {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+  
+  // Middle edge tiling section
+  if (m_tex_lme && lme_height > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = lme_height / (m_tex_lme->m_size.y * m_scale);
+    const CBox box_lme = {{box.x, left_start_y + ltc_pos + VER_TOP_BOT}, {BORDER_LEFT, lme_height}};
+    g_pHyprOpenGL->renderTexture(m_tex_lme, box_lme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+  }
+  
+  // Bottom custom section at placement position
+  if (m_tex_lbc) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    const CBox box_lbc = {{box.x, left_start_y + lbc_pos}, {BORDER_LEFT, VER_BOT_TOP}};
+    g_pHyprOpenGL->renderTexture(m_tex_lbc, box_lbc, {.a = a, .blur = shouldBlur()});
+  }
+  
+  // Bottom edge tiling section
+  if (m_tex_lbe && lbe_height > 0) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = lbe_height / (m_tex_lbe->m_size.y * m_scale);
+    const CBox box_lbe = {{box.x, left_start_y + lbc_pos + VER_BOT_TOP}, {BORDER_LEFT, lbe_height}};
+    g_pHyprOpenGL->renderTexture(m_tex_lbe, box_lbe, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
   }
 
   // Corners
@@ -188,7 +371,6 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
         g_pHyprOpenGL->renderTexture(m_tex_tr, box_tr, {.a = a});
   }
 
-
   // Restore previous values
 
   g_pHyprOpenGL->m_renderData.useNearestNeighbor = wasUsingNearestNeighbour;
@@ -215,10 +397,10 @@ uint64_t CImgBorder::getDecorationFlags() {
   return DECORATION_PART_OF_MAIN_WINDOW;
 }
 
-bool parseInts(Hyprlang::STRING const *str, int outArr[4]) {
+template<int N>
+bool parseInts(Hyprlang::STRING const *str, int (&outArr)[N]) {
   auto strStream = std::stringstream(*str);
-  int i = 0;
-  for (; i < 4; i++) {
+  for (int i = 0; i < N; i++) {
     try {
       std::string intStr;
       std::getline(strStream, intStr, ',');
@@ -279,6 +461,74 @@ void CImgBorder::updateConfig() {
     return;
   }
 
+  // NEW horsizes
+  const auto horsizesStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:horsizes")
+                            ->getDataStaticPtr();
+  if (!horsizesStr || std::string(*horsizesStr).empty()) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] missing horsizes in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+  if (!parseInts(horsizesStr, m_hor_sizes)) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] invalid horsizes in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+
+    // NEW versizes
+  const auto versizesStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:versizes")
+                            ->getDataStaticPtr();
+  if (!versizesStr || std::string(*versizesStr).empty()) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] missing versizes in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+  if (!parseInts(versizesStr, m_ver_sizes)) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] invalid versizes in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+
+    // NEW horplacements
+  const auto horplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:horplacements")
+                            ->getDataStaticPtr();
+  if (!horplacementsStr || std::string(*horplacementsStr).empty()) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] missing horplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+  if (!parseInts(horplacementsStr, m_hor_placements)) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] invalid horplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+
+    // NEW verplacements
+  const auto verplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:verplacements")
+                            ->getDataStaticPtr();
+  if (!verplacementsStr || std::string(*verplacementsStr).empty()) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] missing verplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+  if (!parseInts(verplacementsStr, m_ver_placements)) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] invalid verplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    return;
+  }
+
   // insets
   const auto insetsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
                              PHANDLE, "plugin:imgborders:insets")
@@ -327,6 +577,51 @@ void CImgBorder::updateConfig() {
     m_tex_br->destroyTexture();
   if (m_tex_bl)
     m_tex_bl->destroyTexture();
+
+  if (m_tex_tle)
+    m_tex_tle->destroyTexture();
+  if (m_tex_tlc)
+    m_tex_tlc->destroyTexture();
+  if (m_tex_tme)
+    m_tex_tme->destroyTexture();
+  if (m_tex_trc)
+    m_tex_trc->destroyTexture();
+  if (m_tex_tre)
+    m_tex_tre->destroyTexture();
+
+  if (m_tex_rte)
+    m_tex_rte->destroyTexture();
+  if (m_tex_rtc)
+    m_tex_rtc->destroyTexture();
+  if (m_tex_rme)
+    m_tex_rme->destroyTexture();
+  if (m_tex_rbc)
+    m_tex_rbc->destroyTexture();
+  if (m_tex_rbe)
+    m_tex_rbe->destroyTexture();
+  
+  if (m_tex_ble)
+    m_tex_ble->destroyTexture();
+  if (m_tex_blc)
+    m_tex_blc->destroyTexture();
+  if (m_tex_bme)
+    m_tex_bme->destroyTexture();
+  if (m_tex_brc)
+    m_tex_brc->destroyTexture();
+  if (m_tex_bre)
+    m_tex_bre->destroyTexture();
+  
+  if (m_tex_lte)
+    m_tex_lte->destroyTexture();
+  if (m_tex_ltc)
+    m_tex_ltc->destroyTexture();
+  if (m_tex_lme)
+    m_tex_lme->destroyTexture();
+  if (m_tex_lbc)
+    m_tex_lbc->destroyTexture();
+  if (m_tex_lbe)
+    m_tex_lbe->destroyTexture();
+
   if (m_tex_l)
     m_tex_l->destroyTexture();
   if (m_tex_t)
@@ -344,6 +639,30 @@ void CImgBorder::updateConfig() {
   m_tex_b = nullptr;
   m_tex_r = nullptr;
 
+  m_tex_tle = nullptr;
+  m_tex_tlc = nullptr;
+  m_tex_tme = nullptr;
+  m_tex_trc = nullptr;
+  m_tex_tre = nullptr;
+
+  m_tex_rte = nullptr;
+  m_tex_rtc = nullptr;
+  m_tex_rme = nullptr;
+  m_tex_rbc = nullptr;
+  m_tex_rbe = nullptr;
+
+  m_tex_ble = nullptr;
+  m_tex_blc = nullptr;
+  m_tex_bme = nullptr;
+  m_tex_brc = nullptr;
+  m_tex_bre = nullptr;
+
+  m_tex_lte = nullptr;
+  m_tex_ltc = nullptr;
+  m_tex_lme = nullptr;
+  m_tex_lbc = nullptr;
+  m_tex_lbe = nullptr;
+
   auto tex = ImgUtils::load(texSrcExpanded);
 
   const auto BORDER_LEFT = (float)m_sizes[0];
@@ -354,15 +673,30 @@ void CImgBorder::updateConfig() {
   const auto WIDTH_MID = tex->m_size.x - BORDER_LEFT - BORDER_RIGHT;
   const auto HEIGHT_MID = tex->m_size.y - BORDER_TOP - BORDER_BOTTOM;
 
-  m_tex_tl = ImgUtils::sliceTexture(tex, {{0., 0.}, {BORDER_LEFT, BORDER_TOP}});
+  const auto BORDER_VERTOPTOP = (float)m_ver_sizes[0];
+  const auto BORDER_VERTOPBOT = (float)m_ver_sizes[1];
+  const auto BORDER_VERBOTTOP = (float)m_ver_sizes[2];
+  const auto BORDER_VERBOTBOT = (float)m_ver_sizes[3];
+  
+  const auto BORDER_HORLEFTLEFT = (float)m_hor_sizes[0];
+  const auto BORDER_HORLEFTRIGHT = (float)m_hor_sizes[1];
+  const auto BORDER_HORRIGHTLEFT = (float)m_hor_sizes[2];
+  const auto BORDER_HORRIGHTRIGHT = (float)m_hor_sizes[3];
 
-  m_tex_t =
-      ImgUtils::sliceTexture(tex, {{BORDER_LEFT, 0.}, {WIDTH_MID, BORDER_TOP}});
+
+  m_tex_tl = ImgUtils::sliceTexture(
+      tex, {{0., 0.}, 
+            {BORDER_LEFT, BORDER_TOP}});
+
+  m_tex_t  = ImgUtils::sliceTexture(
+      tex, {{BORDER_LEFT, 0.}, 
+            {WIDTH_MID, BORDER_TOP}});
 
   m_tex_tr = ImgUtils::sliceTexture(
-      tex, {{tex->m_size.x - BORDER_RIGHT, 0.}, {BORDER_RIGHT, BORDER_TOP}});
+      tex, {{tex->m_size.x - BORDER_RIGHT, 0.}, 
+            {BORDER_RIGHT, BORDER_TOP}});
 
-  m_tex_r = ImgUtils::sliceTexture(
+  m_tex_r  = ImgUtils::sliceTexture(
       tex, {{tex->m_size.x - BORDER_RIGHT, BORDER_TOP},
             {BORDER_RIGHT, tex->m_size.y - BORDER_TOP - BORDER_BOTTOM}});
 
@@ -370,16 +704,82 @@ void CImgBorder::updateConfig() {
       tex, {{tex->m_size.x - BORDER_RIGHT, tex->m_size.y - BORDER_BOTTOM},
             {BORDER_RIGHT, BORDER_BOTTOM}});
 
-  m_tex_b = ImgUtils::sliceTexture(
+  m_tex_b  = ImgUtils::sliceTexture(
       tex, {{BORDER_LEFT, tex->m_size.y - BORDER_BOTTOM},
             {tex->m_size.x - BORDER_LEFT - BORDER_RIGHT, BORDER_BOTTOM}});
 
   m_tex_bl = ImgUtils::sliceTexture(
-      tex, {{0., tex->m_size.y - BORDER_BOTTOM}, {BORDER_LEFT, BORDER_BOTTOM}});
+      tex, {{0., tex->m_size.y - BORDER_BOTTOM}, 
+            {BORDER_LEFT, BORDER_BOTTOM}});
 
-  m_tex_l = ImgUtils::sliceTexture(
+  m_tex_l  = ImgUtils::sliceTexture(
       tex, {{0., BORDER_TOP},
             {BORDER_LEFT, tex->m_size.y - BORDER_TOP - BORDER_BOTTOM}});
+// NEW FUNCTIONALITY
+// TOP EDGE - Corrected definitions
+  m_tex_tle = ImgUtils::sliceTexture(
+      tex, {{BORDER_LEFT, 0.},
+            {BORDER_HORLEFTLEFT, BORDER_TOP}});
+  m_tex_tlc = ImgUtils::sliceTexture(
+      tex, {{BORDER_LEFT + BORDER_HORLEFTLEFT, 0.},
+            {BORDER_HORLEFTRIGHT, BORDER_TOP}});
+  m_tex_tme = ImgUtils::sliceTexture(
+      tex, {{BORDER_LEFT + BORDER_HORLEFTLEFT + BORDER_HORLEFTRIGHT, 0.},
+            {tex->m_size.x - BORDER_RIGHT - BORDER_HORRIGHTRIGHT - BORDER_HORRIGHTLEFT - BORDER_LEFT - BORDER_HORLEFTLEFT - BORDER_HORLEFTRIGHT, BORDER_TOP}});
+  m_tex_trc = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT - BORDER_HORRIGHTRIGHT - BORDER_HORRIGHTLEFT, 0.},
+            {BORDER_HORRIGHTLEFT, BORDER_TOP}});
+  m_tex_tre = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT - BORDER_HORRIGHTRIGHT, 0.},
+            {BORDER_HORRIGHTRIGHT, BORDER_TOP}});
+// RIGHT - Fixed coordinate calculations
+  m_tex_rte = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT, BORDER_TOP},
+            {BORDER_RIGHT, BORDER_VERTOPTOP}});
+  m_tex_rtc = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT, BORDER_TOP + BORDER_VERTOPTOP},
+            {BORDER_RIGHT, BORDER_VERTOPBOT}});
+  m_tex_rme = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT, BORDER_TOP + BORDER_VERTOPTOP + BORDER_VERTOPBOT},
+            {BORDER_RIGHT, tex->m_size.y - BORDER_BOTTOM - BORDER_VERBOTBOT - BORDER_VERBOTTOP - BORDER_TOP - BORDER_VERTOPTOP - BORDER_VERTOPBOT}});
+  m_tex_rbc = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT, tex->m_size.y - BORDER_BOTTOM - BORDER_VERBOTBOT - BORDER_VERBOTTOP},
+            {BORDER_RIGHT, BORDER_VERBOTTOP}});
+  m_tex_rbe = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT, tex->m_size.y - BORDER_BOTTOM - BORDER_VERBOTBOT},
+            {BORDER_RIGHT, BORDER_VERBOTBOT}});
+// BOTTOM
+  m_tex_ble = ImgUtils::sliceTexture(
+      tex, {{BORDER_LEFT, tex->m_size.y - BORDER_BOTTOM},
+            {BORDER_HORLEFTLEFT, BORDER_BOTTOM}});
+  m_tex_blc = ImgUtils::sliceTexture(
+      tex, {{BORDER_LEFT + BORDER_HORLEFTLEFT, tex->m_size.y - BORDER_BOTTOM},
+            {BORDER_HORLEFTRIGHT, BORDER_BOTTOM}});
+  m_tex_bme = ImgUtils::sliceTexture(
+      tex, {{BORDER_LEFT + BORDER_HORLEFTLEFT + BORDER_HORLEFTRIGHT, tex->m_size.y - BORDER_BOTTOM},
+            {tex->m_size.x - BORDER_RIGHT - BORDER_HORRIGHTRIGHT - BORDER_HORRIGHTLEFT - BORDER_LEFT - BORDER_HORLEFTLEFT - BORDER_HORLEFTRIGHT, BORDER_BOTTOM}});
+  m_tex_brc = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT - BORDER_HORRIGHTRIGHT - BORDER_HORRIGHTLEFT, tex->m_size.y - BORDER_BOTTOM},
+            {BORDER_HORRIGHTLEFT, BORDER_BOTTOM}});
+  m_tex_bre = ImgUtils::sliceTexture(
+      tex, {{tex->m_size.x - BORDER_RIGHT - BORDER_HORRIGHTRIGHT, tex->m_size.y - BORDER_BOTTOM},
+            {BORDER_HORRIGHTRIGHT, BORDER_BOTTOM}});
+// LEFT
+  m_tex_lte = ImgUtils::sliceTexture(
+      tex, {{0., BORDER_TOP},
+            {BORDER_LEFT, BORDER_VERTOPTOP}});
+  m_tex_ltc = ImgUtils::sliceTexture(
+      tex, {{0., BORDER_TOP + BORDER_VERTOPTOP},
+            {BORDER_LEFT, BORDER_VERTOPBOT}});
+  m_tex_lme = ImgUtils::sliceTexture(
+      tex, {{0., BORDER_TOP + BORDER_VERTOPTOP + BORDER_VERTOPBOT},
+            {BORDER_LEFT, tex->m_size.y - BORDER_BOTTOM - BORDER_VERBOTBOT - BORDER_VERBOTTOP - BORDER_TOP - BORDER_VERTOPTOP - BORDER_VERTOPBOT}});
+  m_tex_lbc = ImgUtils::sliceTexture(
+      tex, {{0., tex->m_size.y - BORDER_BOTTOM - BORDER_VERBOTBOT - BORDER_VERBOTTOP},
+            {BORDER_LEFT, BORDER_VERBOTTOP}});
+  m_tex_lbe = ImgUtils::sliceTexture(
+      tex, {{0., tex->m_size.y - BORDER_BOTTOM - BORDER_VERBOTBOT},
+            {BORDER_LEFT, BORDER_VERBOTBOT}});
 
   tex->destroyTexture();
 
