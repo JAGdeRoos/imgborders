@@ -3,7 +3,8 @@ name = "imgborders"
 authors = ["zacoons"]
 # Hyprland commit, this repo commit
 commit_pins = [
-	["4e242d086e20b32951fdc0ebcbfb4d41b5be8dcc", "93159f5c20a91dd48465ba88e40b3370d2ca3846"], # 0.50.1
+	["46174f78b374b6cea669c48880877a8bdcf7802f", "97f1ddb0c1570eb7e605ad17dcb91dfdf0d0849e"], # 0.51.0
+    ["4e242d086e20b32951fdc0ebcbfb4d41b5be8dcc", "93159f5c20a91dd48465ba88e40b3370d2ca3846"], # 0.50.1
 	["c4a4c341568944bd4fb9cd503558b2de602c0213", "93159f5c20a91dd48465ba88e40b3370d2ca3846"], # 0.50.0
 ]
 

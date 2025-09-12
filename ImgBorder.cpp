@@ -440,9 +440,9 @@ void CImgBorder::updateConfig() {
         PHANDLE,
         std::format("[imgborders] {} image at doesn't exist", texSrcExpanded),
         CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
-  m_texSrc = texSrcExpanded;
 
   // sizes
   const auto sizesStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
@@ -452,16 +452,18 @@ void CImgBorder::updateConfig() {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] missing sizes in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;                             
     return;
   }
   if (!parseInts(sizesStr, m_sizes)) {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] invalid sizes in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
 
-  // NEW horsizes
+  // 7x7 horsizes
   const auto horsizesStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
                             PHANDLE, "plugin:imgborders:horsizes")
                             ->getDataStaticPtr();
@@ -469,16 +471,18 @@ void CImgBorder::updateConfig() {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] missing horsizes in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
   if (!parseInts(horsizesStr, m_hor_sizes)) {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] invalid horsizes in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
 
-    // NEW versizes
+    // 7x7 versizes
   const auto versizesStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
                             PHANDLE, "plugin:imgborders:versizes")
                             ->getDataStaticPtr();
@@ -486,16 +490,18 @@ void CImgBorder::updateConfig() {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] missing versizes in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
   if (!parseInts(versizesStr, m_ver_sizes)) {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] invalid versizes in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
 
-    // NEW horplacements
+    // 7x7 horplacements
   const auto horplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
                             PHANDLE, "plugin:imgborders:horplacements")
                             ->getDataStaticPtr();
@@ -503,16 +509,18 @@ void CImgBorder::updateConfig() {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] missing horplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
   if (!parseInts(horplacementsStr, m_hor_placements)) {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] invalid horplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
 
-    // NEW verplacements
+    // 7x7 verplacements
   const auto verplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
                             PHANDLE, "plugin:imgborders:verplacements")
                             ->getDataStaticPtr();
@@ -520,12 +528,14 @@ void CImgBorder::updateConfig() {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] missing verplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
   if (!parseInts(verplacementsStr, m_ver_placements)) {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] invalid verplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
 
@@ -538,12 +548,14 @@ void CImgBorder::updateConfig() {
         PHANDLE,
         "[imgborders] missing insets in config. This should never happen!",
         CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
   if (!parseInts(insetsStr, m_insets)) {
     HyprlandAPI::addNotification(PHANDLE,
                                  "[imgborders] invalid insets in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
     return;
   }
 
@@ -715,7 +727,7 @@ void CImgBorder::updateConfig() {
   m_tex_l  = ImgUtils::sliceTexture(
       tex, {{0., BORDER_TOP},
             {BORDER_LEFT, tex->m_size.y - BORDER_TOP - BORDER_BOTTOM}});
-// NEW FUNCTIONALITY
+// 7x7 FUNCTIONALITY
 // TOP EDGE - Corrected definitions
   m_tex_tle = ImgUtils::sliceTexture(
       tex, {{BORDER_LEFT, 0.},

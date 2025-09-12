@@ -50,7 +50,6 @@ private:
 
   bool m_isEnabled;
   bool m_isHidden;
-  std::string m_texSrc;
   int m_sizes[4];
   int m_insets[4];
   int m_hor_sizes[4];

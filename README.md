@@ -1,11 +1,13 @@
 As seen in 𝕽𝖎𝖛𝖊𝖓𝖉𝖊𝖑𝖑, the winning submission to Hyprland's 4th ricing competition: https://codeberg.org/zacoons/rivendell-hyprdots
 
-# Installation
+All credit to zacoons, I've only forked and modified.
+
+# Installating
 
 Build from source:
 
 ```
-% git clone https://codeberg.org/zacoons/imgborders
+% git clone https://github.com/JAGdeRoos/imgborders
 % cmake -B build
 % cmake --build build
 ```
@@ -13,7 +15,7 @@ Build from source:
 Then add it to Hyprland:
 
 ```
-% hyprctl plugin load /home/you/code/imgborders/build/imgborders.so
+% hyprctl plugin load /home/$USER/dev/imgborders/build/imgborders.so
 ```
 
 To remove it just replace `load` with `unload` in the above.
@@ -22,7 +24,7 @@ To remove it just replace `load` with `unload` in the above.
 
 ## Basic Configuration
 
-```
+``` conf
 plugin:imgborders {
     enabled = true
     image = ~/path/to/file
@@ -49,7 +51,6 @@ I don't think I need to explain `enabled` or `image`.
 ## Enhanced 7-Section Border System
 
 For advanced border customization, you can now split each edge into 7 sections instead of the basic single tiling edge:
-
 ```
 plugin:imgborders {
     # ... basic config above ...
@@ -63,6 +64,11 @@ plugin:imgborders {
     verplacements = 30,70       # vertical custom positions: top-custom%, bottom-custom%
 }
 ```
+
+## Window rules
+
+`plugin:imgborders:noimgborders` - Disables image borders.
+
 
 ### How It Works
 
@@ -98,7 +104,3 @@ Note this means the middle edge for both the vertical and horizontal edge is pop
 **`verplacements`** - (2 integers) Percentage positions (0-100) for custom sections on vertical edges:
 - `[0]` = position of top custom section  
 - `[1]` = position of bottom custom section
-
-## Window rules
-
-`plugin:imgborders:noimgborders` - Disables image borders.
