@@ -89,6 +89,8 @@ Each edge is divided into **7 sections**:
 - `[2]` = bottom custom section height  
 - `[3]` = bottom edge section 2 height
 
+Note this means the middle edge for both the vertical and horizontal edge is populated by the space between defined sections.
+
 **`horplacements`** - (2 integers) Percentage positions (0-100) for custom sections on horizontal edges:
 - `[0]` = position of left custom section
 - `[1]` = position of right custom section
@@ -97,43 +99,6 @@ Each edge is divided into **7 sections**:
 - `[0]` = position of top custom section  
 - `[1]` = position of bottom custom section
 
-### Creative Examples
-
-**Centered decorations:**
-```
-horplacements = 45,55  # customs close to center
-verplacements = 45,55  # creates large outer tiling sections
-```
-
-**Wide spread:**
-```
-horplacements = 20,80  # customs far apart  
-verplacements = 25,75  # creates large middle tiling section
-```
-
-**Asymmetric design:**
-```
-horplacements = 15,90  # uneven positioning
-verplacements = 10,60  # for unique layouts
-```
-
-The **3 tiling sections** per edge automatically adjust their sizes based on custom positions, seamlessly filling the space between corners and custom elements with your tiling textures.
-
 ## Window rules
 
 `plugin:imgborders:noimgborders` - Disables image borders.
-
-## Advanced Border Design Tips
-
-1. **Source Image Layout**: Design your source image with the enhanced system in mind. Place different textures in the areas that will be sliced for each section type.
-
-2. **Tiling Textures**: The 3 tiling sections per edge (`tle`/`tme`/`tre`, `rte`/`rme`/`rbe`, etc.) should contain seamlessly tileable patterns.
-
-3. **Custom Elements**: The 2 custom sections per edge (`tlc`/`trc`, `rtc`/`rbc`, etc.) can contain logos, decorative elements, or special graphics that will be positioned exactly where you specify.
-
-4. **Placement Strategy**: 
-   - Use close placements (45%, 55%) for prominent outer tiling sections
-   - Use wide placements (20%, 80%) for a dominant middle tiling section
-   - Use asymmetric placements for unique, non-uniform designs
-
-5. **Section Sizing**: Balance your `horsizes`/`versizes` with your `horplacements`/`verplacements` to ensure custom sections don't overlap and tiling sections have adequate space.
