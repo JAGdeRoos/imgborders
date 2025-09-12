@@ -1,4 +1,4 @@
 build/
 .cache/
 log.txt
-vscode/
+.vscode/
