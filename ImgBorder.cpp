@@ -144,8 +144,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float top_available_width = WIDTH_MID;
   
   // Calculate custom positions as percentages of available width
-  const float tlc_pos = (m_hor_placements[0] / 100.0f) * top_available_width;
-  const float trc_pos = (m_hor_placements[1] / 100.0f) * top_available_width;
+  const float tlc_pos = (m_top_placements[0] / 100.0f) * top_available_width;
+  const float trc_pos = (m_top_placements[1] / 100.0f) * top_available_width;
   
   // Calculate tiling section widths based on custom positions
   const float tle_width = tlc_pos;
@@ -197,8 +197,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float right_available_height = HEIGHT_MID;
   
   // Calculate custom positions as percentages of available height
-  const float rtc_pos = (m_ver_placements[0] / 100.0f) * right_available_height;
-  const float rbc_pos = (m_ver_placements[1] / 100.0f) * right_available_height;
+  const float rtc_pos = (m_right_placements[0] / 100.0f) * right_available_height;
+  const float rbc_pos = (m_right_placements[1] / 100.0f) * right_available_height;
   
   // Calculate tiling section heights based on custom positions
   const float rte_height = rtc_pos;
@@ -247,9 +247,9 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float bottom_start_x = box.x + BORDER_LEFT;
   const float bottom_available_width = WIDTH_MID;
   
-  // Calculate custom positions as percentages of available width (same as top edge)
-  const float blc_pos = (m_hor_placements[0] / 100.0f) * bottom_available_width;
-  const float brc_pos = (m_hor_placements[1] / 100.0f) * bottom_available_width;
+  // Calculate custom positions as percentages of available width
+  const float blc_pos = (m_bottom_placements[0] / 100.0f) * bottom_available_width;
+  const float brc_pos = (m_bottom_placements[1] / 100.0f) * bottom_available_width;
   
   // Calculate tiling section widths based on custom positions
   const float ble_width = blc_pos;
@@ -298,9 +298,9 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float left_start_y = box.y + BORDER_TOP;
   const float left_available_height = HEIGHT_MID;
   
-  // Calculate custom positions as percentages of available height (same as right edge)
-  const float ltc_pos = (m_ver_placements[0] / 100.0f) * left_available_height;
-  const float lbc_pos = (m_ver_placements[1] / 100.0f) * left_available_height;
+  // Calculate custom positions as percentages of available height
+  const float ltc_pos = (m_left_placements[0] / 100.0f) * left_available_height;
+  const float lbc_pos = (m_left_placements[1] / 100.0f) * left_available_height;
   
   // Calculate tiling section heights based on custom positions
   const float lte_height = ltc_pos;
@@ -501,39 +501,74 @@ void CImgBorder::updateConfig() {
     return;
   }
 
-    // 7x7 horplacements
-  const auto horplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
-                            PHANDLE, "plugin:imgborders:horplacements")
+  // Independent edge placements
+  const auto topplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:topplacements")
                             ->getDataStaticPtr();
-  if (!horplacementsStr || std::string(*horplacementsStr).empty()) {
+  if (!topplacementsStr || std::string(*topplacementsStr).empty()) {
     HyprlandAPI::addNotification(PHANDLE,
-                                 "[imgborders] missing horplacements in config",
+                                 "[imgborders] missing topplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
     m_isEnabled = false;
     return;
   }
-  if (!parseInts(horplacementsStr, m_hor_placements)) {
+  if (!parseInts(topplacementsStr, m_top_placements)) {
     HyprlandAPI::addNotification(PHANDLE,
-                                 "[imgborders] invalid horplacements in config",
+                                 "[imgborders] invalid topplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
     m_isEnabled = false;
     return;
   }
 
-    // 7x7 verplacements
-  const auto verplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
-                            PHANDLE, "plugin:imgborders:verplacements")
+  const auto bottomplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:bottomplacements")
                             ->getDataStaticPtr();
-  if (!verplacementsStr || std::string(*verplacementsStr).empty()) {
+  if (!bottomplacementsStr || std::string(*bottomplacementsStr).empty()) {
     HyprlandAPI::addNotification(PHANDLE,
-                                 "[imgborders] missing verplacements in config",
+                                 "[imgborders] missing bottomplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
     m_isEnabled = false;
     return;
   }
-  if (!parseInts(verplacementsStr, m_ver_placements)) {
+  if (!parseInts(bottomplacementsStr, m_bottom_placements)) {
     HyprlandAPI::addNotification(PHANDLE,
-                                 "[imgborders] invalid verplacements in config",
+                                 "[imgborders] invalid bottomplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
+    return;
+  }
+
+  const auto leftplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:leftplacements")
+                            ->getDataStaticPtr();
+  if (!leftplacementsStr || std::string(*leftplacementsStr).empty()) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] missing leftplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
+    return;
+  }
+  if (!parseInts(leftplacementsStr, m_left_placements)) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] invalid leftplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
+    return;
+  }
+
+  const auto rightplacementsStr = (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
+                            PHANDLE, "plugin:imgborders:rightplacements")
+                            ->getDataStaticPtr();
+  if (!rightplacementsStr || std::string(*rightplacementsStr).empty()) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] missing rightplacements in config",
+                                 CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
+    m_isEnabled = false;
+    return;
+  }
+  if (!parseInts(rightplacementsStr, m_right_placements)) {
+    HyprlandAPI::addNotification(PHANDLE,
+                                 "[imgborders] invalid rightplacements in config",
                                  CHyprColor{1.0, 0.1, 0.1, 1.0}, 5000);
     m_isEnabled = false;
     return;

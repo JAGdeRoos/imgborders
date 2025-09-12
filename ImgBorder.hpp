@@ -54,8 +54,10 @@ private:
   int m_insets[4];
   int m_hor_sizes[4];
   int m_ver_sizes[4];
-  int m_hor_placements[2];
-  int m_ver_placements[2];
+  int m_top_placements[2];
+  int m_bottom_placements[2];
+  int m_left_placements[2];
+  int m_right_placements[2];
 
   float m_scale;
   bool m_shouldSmooth;

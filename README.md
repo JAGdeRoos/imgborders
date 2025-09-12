@@ -2,7 +2,7 @@ As seen in 𝕽𝖎𝖛𝖊𝖓𝖉𝖊𝖑𝖑, the winning submission to Hyprl
 
 All credit to zacoons, I've only forked and modified.
 
-# Installating
+# Installation
 
 Build from source:
 
@@ -20,20 +20,29 @@ Then add it to Hyprland:
 
 To remove it just replace `load` with `unload` in the above.
 
-# Config'ing
+# Configuration
 
-## Basic Configuration
+## My Config
 
 ``` conf
-plugin:imgborders {
-    enabled = true
-    image = ~/path/to/file
-    sizes = 1,2,3,4 # left, right, top, bottom
-    insets = 1,2,3,4 # left, right, top, bottom
-    scale = 1.2
-    smooth = true
-    blur = false
-}
+imgborders {
+         enabled = true
+         image = ~/.config/assets/imgborder_techy png
+         sizes = 21,32,15,21 # left, right, top, bottom 
+         insets = 1,2,5,1 # left, right, top, bottom
+
+         horsizes = 6, 14, 11, 5
+         versizes = 12, 12, 15, 8
+         
+         scale = 1
+         smooth = true
+         blur = false
+
+         topplacements = 25,75
+         bottomplacements = 45,55
+         leftplacements = 30,70
+         rightplacements = 20,80
+     }
 ```
 
 I don't think I need to explain `enabled` or `image`.
@@ -42,28 +51,15 @@ I don't think I need to explain `enabled` or `image`.
 
 `insets` - (4 integers) Defines the amount by which to inset each side into the window.
 
+`horsizes/versizes` - (4 integers) Defines the number of pixels for each additional piece of edge, first two count from top, second two count from bottom.
+
 `scale` - Scale the borders by some amount.
 
 `smooth` - Whether the image pixels should have smoothing (true) or if it should be pixelated (false).
 
 `blur` - Whether transparency should have blur (true) or if it should be clear (false).
 
-## Enhanced 7-Section Border System
-
-For advanced border customization, you can now split each edge into 7 sections instead of the basic single tiling edge:
-```
-plugin:imgborders {
-    # ... basic config above ...
-    
-    # Section sizes (pixels from source image)
-    horsizes = 10,20,15,25      # horizontal sections: left-left, left-right, right-left, right-right
-    versizes = 12,18,18,12      # vertical sections: top-top, top-bottom, bottom-top, bottom-bottom
-    
-    # Custom section placements (percentages 0-100)
-    horplacements = 25,75       # horizontal custom positions: left-custom%, right-custom%
-    verplacements = 30,70       # vertical custom positions: top-custom%, bottom-custom%
-}
-```
+`side-placements` - (2 integers) Defines where along the edge to place the custom parts for each side.
 
 ## Window rules
 
@@ -97,10 +93,4 @@ Each edge is divided into **7 sections**:
 
 Note this means the middle edge for both the vertical and horizontal edge is populated by the space between defined sections.
 
-**`horplacements`** - (2 integers) Percentage positions (0-100) for custom sections on horizontal edges:
-- `[0]` = position of left custom section
-- `[1]` = position of right custom section
-
-**`verplacements`** - (2 integers) Percentage positions (0-100) for custom sections on vertical edges:
-- `[0]` = position of top custom section  
-- `[1]` = position of bottom custom section
+**Note:** All four placement parameters are required for the 7-section border system to work.

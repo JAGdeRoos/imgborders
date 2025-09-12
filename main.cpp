@@ -112,9 +112,13 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
                               Hyprlang::STRING{""});
   HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:versizes", 
                               Hyprlang::STRING{""});
-  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:horplacements", 
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:topplacements", 
                               Hyprlang::STRING{""});
-  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:verplacements", 
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:bottomplacements", 
+                              Hyprlang::STRING{""});
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:leftplacements", 
+                              Hyprlang::STRING{""});
+  HyprlandAPI::addConfigValue(PHANDLE, "plugin:imgborders:rightplacements", 
                               Hyprlang::STRING{""});
 
   // Register callbacks
