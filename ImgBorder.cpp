@@ -2,7 +2,10 @@
 #include "ImgBorderPassElement.hpp"
 #include "ImgUtils.hpp"
 #include "globals.hpp"
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
+#include <vector>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/debug/Log.hpp>
@@ -63,14 +66,23 @@ bool CImgBorder::shouldBlur() { return m_shouldBlurGlobal && m_shouldBlur; }
 CBox CImgBorder::getGlobalBoundingBox(PHLMONITOR pMonitor) {
   const auto PWINDOW = m_pWindow.lock();
 
+  // Safety check for valid window
+  if (!PWINDOW) {
+    return CBox{};
+  }
+
   // idk if I should be doing it this way but it works so...
   CBox box = PWINDOW->getWindowMainSurfaceBox();
-  box.width += (m_sizes[0] - m_insets[0]) * m_scale +
-               (m_sizes[1] - m_insets[1]) * m_scale;
-  box.height += (m_sizes[2] - m_insets[2]) * m_scale +
-                (m_sizes[3] - m_insets[3]) * m_scale;
-  box.translate(-Vector2D{(m_sizes[0] - m_insets[0]) * m_scale,
-                          (m_sizes[2] - m_insets[2]) * m_scale});
+  
+  // Safety check for valid scale to prevent infinite or NaN values
+  const float safeScale = (m_scale > 0 && std::isfinite(m_scale)) ? m_scale : 1.0f;
+  
+  box.width += (m_sizes[0] - m_insets[0]) * safeScale +
+               (m_sizes[1] - m_insets[1]) * safeScale;
+  box.height += (m_sizes[2] - m_insets[2]) * safeScale +
+                (m_sizes[3] - m_insets[3]) * safeScale;
+  box.translate(-Vector2D{(m_sizes[0] - m_insets[0]) * safeScale,
+                          (m_sizes[2] - m_insets[2]) * safeScale});
 
   const auto PWORKSPACE = PWINDOW->m_workspace;
   const auto WORKSPACEOFFSET = PWORKSPACE && !m_pWindow->m_pinned
@@ -79,9 +91,33 @@ CBox CImgBorder::getGlobalBoundingBox(PHLMONITOR pMonitor) {
   box.translate(PWINDOW->m_floatingOffset - pMonitor->m_position +
                 WORKSPACEOFFSET);
 
+  // Ensure box has valid dimensions
+  box.width = std::max(0.0, box.width);
+  box.height = std::max(0.0, box.height);
+
   m_bLastRelativeBox = box;
 
   return box;
+}
+
+// Helper function to safely render texture with UV scaling
+void CImgBorder::safeRenderTexture(SP<CTexture> tex, const CBox& renderBox, float dimension, bool isWidth, const float& a) {
+  if (!tex || dimension <= 0 || m_scale <= 0) return;
+  
+  const float texSize = isWidth ? tex->m_size.x : tex->m_size.y;
+  if (texSize <= 0) return;
+  
+  const float uvScale = dimension / (texSize * m_scale);
+  if (uvScale <= 0) return;
+  
+  if (isWidth) {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = uvScale;
+  } else {
+    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = uvScale;
+  }
+  
+  g_pHyprOpenGL->renderTexture(tex, renderBox, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
+  g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
 }
 
 void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
@@ -89,6 +125,11 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
     return;
 
   const auto box = getGlobalBoundingBox(pMonitor);
+
+  // Safety check for minimum dimensions to prevent crashes
+  if (box.width <= 0 || box.height <= 0) {
+    return;
+  }
 
   // For debugging
   // g_pHyprOpenGL->renderRect(box, CHyprColor{1.0, 0.0, 0.0, 0.5});
@@ -104,6 +145,11 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
 
   const auto HEIGHT_MID = box.height - BORDER_TOP - BORDER_BOTTOM;
   const auto WIDTH_MID = box.width - BORDER_LEFT - BORDER_RIGHT;
+
+  // Safety checks to prevent negative dimensions and divide by zero
+  if (HEIGHT_MID <= 0 || WIDTH_MID <= 0) {
+    return;
+  }
 
   // Save previous values
 
@@ -147,19 +193,17 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float tlc_pos = (m_top_placements[0] / 100.0f) * top_available_width;
   const float trc_pos = (m_top_placements[1] / 100.0f) * top_available_width;
   
-  // Calculate tiling section widths based on custom positions
-  const float tle_width = tlc_pos;
-  const float tme_width = trc_pos - tlc_pos - HOR_LEFT_RIGHT;
-  const float tre_width = top_available_width - trc_pos - HOR_RIGHT_LEFT;
+  // Calculate tiling section widths based on custom positions with safety checks
+  const float tle_width = std::max(0.0f, tlc_pos);
+  const float tme_width = std::max(0.0f, trc_pos - tlc_pos - HOR_LEFT_RIGHT);
+  const float tre_width = std::max(0.0f, top_available_width - trc_pos - HOR_RIGHT_LEFT);
   
   float top_x = top_start_x;
   
   // Left edge tiling section
   if (m_tex_tle && tle_width > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = tle_width / (m_tex_tle->m_size.x * m_scale);
     const CBox box_tle = {{top_x, box.y}, {tle_width, BORDER_TOP}};
-    g_pHyprOpenGL->renderTexture(m_tex_tle, box_tle, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_tle, box_tle, tle_width, true, a);
   }
   
   // Left custom section at placement position
@@ -171,10 +215,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Middle edge tiling section
   if (m_tex_tme && tme_width > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = tme_width / (m_tex_tme->m_size.x * m_scale);
     const CBox box_tme = {{top_start_x + tlc_pos + HOR_LEFT_RIGHT, box.y}, {tme_width, BORDER_TOP}};
-    g_pHyprOpenGL->renderTexture(m_tex_tme, box_tme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_tme, box_tme, tme_width, true, a);
   }
   
   // Right custom section at placement position
@@ -186,10 +228,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Right edge tiling section
   if (m_tex_tre && tre_width > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = tre_width / (m_tex_tre->m_size.x * m_scale);
     const CBox box_tre = {{top_start_x + trc_pos + HOR_RIGHT_LEFT, box.y}, {tre_width, BORDER_TOP}};
-    g_pHyprOpenGL->renderTexture(m_tex_tre, box_tre, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_tre, box_tre, tre_width, true, a);
   }
 
   // RIGHT EDGE (7 sections with placement-based positioning)
@@ -200,17 +240,15 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float rtc_pos = (m_right_placements[0] / 100.0f) * right_available_height;
   const float rbc_pos = (m_right_placements[1] / 100.0f) * right_available_height;
   
-  // Calculate tiling section heights based on custom positions
-  const float rte_height = rtc_pos;
-  const float rme_height = rbc_pos - rtc_pos - VER_TOP_BOT;
-  const float rbe_height = right_available_height - rbc_pos - VER_BOT_TOP;
+  // Calculate tiling section heights based on custom positions with safety checks
+  const float rte_height = std::max(0.0f, rtc_pos);
+  const float rme_height = std::max(0.0f, rbc_pos - rtc_pos - VER_TOP_BOT);
+  const float rbe_height = std::max(0.0f, right_available_height - rbc_pos - VER_BOT_TOP);
   
   // Top edge tiling section
   if (m_tex_rte && rte_height > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = rte_height / (m_tex_rte->m_size.y * m_scale);
     const CBox box_rte = {{box.x + box.width - BORDER_RIGHT, right_start_y}, {BORDER_RIGHT, rte_height}};
-    g_pHyprOpenGL->renderTexture(m_tex_rte, box_rte, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_rte, box_rte, rte_height, false, a);
   }
   
   // Top custom section at placement position
@@ -222,10 +260,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Middle edge tiling section
   if (m_tex_rme && rme_height > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = rme_height / (m_tex_rme->m_size.y * m_scale);
     const CBox box_rme = {{box.x + box.width - BORDER_RIGHT, right_start_y + rtc_pos + VER_TOP_BOT}, {BORDER_RIGHT, rme_height}};
-    g_pHyprOpenGL->renderTexture(m_tex_rme, box_rme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_rme, box_rme, rme_height, false, a);
   }
   
   // Bottom custom section at placement position
@@ -237,10 +273,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Bottom edge tiling section
   if (m_tex_rbe && rbe_height > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = rbe_height / (m_tex_rbe->m_size.y * m_scale);
     const CBox box_rbe = {{box.x + box.width - BORDER_RIGHT, right_start_y + rbc_pos + VER_BOT_TOP}, {BORDER_RIGHT, rbe_height}};
-    g_pHyprOpenGL->renderTexture(m_tex_rbe, box_rbe, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_rbe, box_rbe, rbe_height, false, a);
   }
 
   // BOTTOM EDGE (7 sections with placement-based positioning)
@@ -251,17 +285,15 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float blc_pos = (m_bottom_placements[0] / 100.0f) * bottom_available_width;
   const float brc_pos = (m_bottom_placements[1] / 100.0f) * bottom_available_width;
   
-  // Calculate tiling section widths based on custom positions
-  const float ble_width = blc_pos;
-  const float bme_width = brc_pos - blc_pos - HOR_LEFT_RIGHT;
-  const float bre_width = bottom_available_width - brc_pos - HOR_RIGHT_LEFT;
+  // Calculate tiling section widths based on custom positions with safety checks
+  const float ble_width = std::max(0.0f, blc_pos);
+  const float bme_width = std::max(0.0f, brc_pos - blc_pos - HOR_LEFT_RIGHT);
+  const float bre_width = std::max(0.0f, bottom_available_width - brc_pos - HOR_RIGHT_LEFT);
   
   // Left edge tiling section
   if (m_tex_ble && ble_width > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = ble_width / (m_tex_ble->m_size.x * m_scale);
     const CBox box_ble = {{bottom_start_x, box.y + box.height - BORDER_BOTTOM}, {ble_width, BORDER_BOTTOM}};
-    g_pHyprOpenGL->renderTexture(m_tex_ble, box_ble, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_ble, box_ble, ble_width, true, a);
   }
   
   // Left custom section at placement position
@@ -273,10 +305,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Middle edge tiling section
   if (m_tex_bme && bme_width > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = bme_width / (m_tex_bme->m_size.x * m_scale);
     const CBox box_bme = {{bottom_start_x + blc_pos + HOR_LEFT_RIGHT, box.y + box.height - BORDER_BOTTOM}, {bme_width, BORDER_BOTTOM}};
-    g_pHyprOpenGL->renderTexture(m_tex_bme, box_bme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_bme, box_bme, bme_width, true, a);
   }
   
   // Right custom section at placement position
@@ -288,10 +318,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Right edge tiling section
   if (m_tex_bre && bre_width > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.x = bre_width / (m_tex_bre->m_size.x * m_scale);
     const CBox box_bre = {{bottom_start_x + brc_pos + HOR_RIGHT_LEFT, box.y + box.height - BORDER_BOTTOM}, {bre_width, BORDER_BOTTOM}};
-    g_pHyprOpenGL->renderTexture(m_tex_bre, box_bre, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_bre, box_bre, bre_width, true, a);
   }
 
   // LEFT EDGE (7 sections with placement-based positioning)
@@ -302,17 +330,15 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   const float ltc_pos = (m_left_placements[0] / 100.0f) * left_available_height;
   const float lbc_pos = (m_left_placements[1] / 100.0f) * left_available_height;
   
-  // Calculate tiling section heights based on custom positions
-  const float lte_height = ltc_pos;
-  const float lme_height = lbc_pos - ltc_pos - VER_TOP_BOT;
-  const float lbe_height = left_available_height - lbc_pos - VER_BOT_TOP;
+  // Calculate tiling section heights based on custom positions with safety checks
+  const float lte_height = std::max(0.0f, ltc_pos);
+  const float lme_height = std::max(0.0f, lbc_pos - ltc_pos - VER_TOP_BOT);
+  const float lbe_height = std::max(0.0f, left_available_height - lbc_pos - VER_BOT_TOP);
   
   // Top edge tiling section
   if (m_tex_lte && lte_height > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = lte_height / (m_tex_lte->m_size.y * m_scale);
     const CBox box_lte = {{box.x, left_start_y}, {BORDER_LEFT, lte_height}};
-    g_pHyprOpenGL->renderTexture(m_tex_lte, box_lte, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_lte, box_lte, lte_height, false, a);
   }
   
   // Top custom section at placement position
@@ -324,10 +350,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Middle edge tiling section
   if (m_tex_lme && lme_height > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = lme_height / (m_tex_lme->m_size.y * m_scale);
     const CBox box_lme = {{box.x, left_start_y + ltc_pos + VER_TOP_BOT}, {BORDER_LEFT, lme_height}};
-    g_pHyprOpenGL->renderTexture(m_tex_lme, box_lme, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_lme, box_lme, lme_height, false, a);
   }
   
   // Bottom custom section at placement position
@@ -339,10 +363,8 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
   
   // Bottom edge tiling section
   if (m_tex_lbe && lbe_height > 0) {
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight.y = lbe_height / (m_tex_lbe->m_size.y * m_scale);
     const CBox box_lbe = {{box.x, left_start_y + lbc_pos + VER_BOT_TOP}, {BORDER_LEFT, lbe_height}};
-    g_pHyprOpenGL->renderTexture(m_tex_lbe, box_lbe, {.a = a, .blur = shouldBlur(), .allowCustomUV = true, .wrapX = GL_REPEAT, .wrapY = GL_REPEAT});
-    g_pHyprOpenGL->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
+    safeRenderTexture(m_tex_lbe, box_lbe, lbe_height, false, a);
   }
 
   // Corners
@@ -615,100 +637,135 @@ void CImgBorder::updateConfig() {
   // Create textures
   // ------------
 
-  // But first delete old textures
-  if (m_tex_tl)
-    m_tex_tl->destroyTexture();
-  if (m_tex_tr)
-    m_tex_tr->destroyTexture();
-  if (m_tex_br)
-    m_tex_br->destroyTexture();
-  if (m_tex_bl)
-    m_tex_bl->destroyTexture();
-
-  if (m_tex_tle)
-    m_tex_tle->destroyTexture();
-  if (m_tex_tlc)
-    m_tex_tlc->destroyTexture();
-  if (m_tex_tme)
-    m_tex_tme->destroyTexture();
-  if (m_tex_trc)
-    m_tex_trc->destroyTexture();
-  if (m_tex_tre)
-    m_tex_tre->destroyTexture();
-
-  if (m_tex_rte)
-    m_tex_rte->destroyTexture();
-  if (m_tex_rtc)
-    m_tex_rtc->destroyTexture();
-  if (m_tex_rme)
-    m_tex_rme->destroyTexture();
-  if (m_tex_rbc)
-    m_tex_rbc->destroyTexture();
-  if (m_tex_rbe)
-    m_tex_rbe->destroyTexture();
+  // But first delete old textures - ensure we're not in a render pass
+  // Store old textures to destroy after nullifying pointers to prevent race conditions
+  std::vector<SP<CTexture>> texturesToDestroy;
   
-  if (m_tex_ble)
-    m_tex_ble->destroyTexture();
-  if (m_tex_blc)
-    m_tex_blc->destroyTexture();
-  if (m_tex_bme)
-    m_tex_bme->destroyTexture();
-  if (m_tex_brc)
-    m_tex_brc->destroyTexture();
-  if (m_tex_bre)
-    m_tex_bre->destroyTexture();
+  if (m_tex_tl) {
+    texturesToDestroy.push_back(m_tex_tl);
+    m_tex_tl = nullptr;
+  }
+  if (m_tex_tr) {
+    texturesToDestroy.push_back(m_tex_tr);
+    m_tex_tr = nullptr;
+  }
+  if (m_tex_br) {
+    texturesToDestroy.push_back(m_tex_br);
+    m_tex_br = nullptr;
+  }
+  if (m_tex_bl) {
+    texturesToDestroy.push_back(m_tex_bl);
+    m_tex_bl = nullptr;
+  }
+
+  // Continue collecting textures to destroy
+  if (m_tex_tle) {
+    texturesToDestroy.push_back(m_tex_tle);
+    m_tex_tle = nullptr;
+  }
+  if (m_tex_tlc) {
+    texturesToDestroy.push_back(m_tex_tlc);
+    m_tex_tlc = nullptr;
+  }
+  if (m_tex_tme) {
+    texturesToDestroy.push_back(m_tex_tme);
+    m_tex_tme = nullptr;
+  }
+  if (m_tex_trc) {
+    texturesToDestroy.push_back(m_tex_trc);
+    m_tex_trc = nullptr;
+  }
+  if (m_tex_tre) {
+    texturesToDestroy.push_back(m_tex_tre);
+    m_tex_tre = nullptr;
+  }
+
+  if (m_tex_rte) {
+    texturesToDestroy.push_back(m_tex_rte);
+    m_tex_rte = nullptr;
+  }
+  if (m_tex_rtc) {
+    texturesToDestroy.push_back(m_tex_rtc);
+    m_tex_rtc = nullptr;
+  }
+  if (m_tex_rme) {
+    texturesToDestroy.push_back(m_tex_rme);
+    m_tex_rme = nullptr;
+  }
+  if (m_tex_rbc) {
+    texturesToDestroy.push_back(m_tex_rbc);
+    m_tex_rbc = nullptr;
+  }
+  if (m_tex_rbe) {
+    texturesToDestroy.push_back(m_tex_rbe);
+    m_tex_rbe = nullptr;
+  }
   
-  if (m_tex_lte)
-    m_tex_lte->destroyTexture();
-  if (m_tex_ltc)
-    m_tex_ltc->destroyTexture();
-  if (m_tex_lme)
-    m_tex_lme->destroyTexture();
-  if (m_tex_lbc)
-    m_tex_lbc->destroyTexture();
-  if (m_tex_lbe)
-    m_tex_lbe->destroyTexture();
+  if (m_tex_ble) {
+    texturesToDestroy.push_back(m_tex_ble);
+    m_tex_ble = nullptr;
+  }
+  if (m_tex_blc) {
+    texturesToDestroy.push_back(m_tex_blc);
+    m_tex_blc = nullptr;
+  }
+  if (m_tex_bme) {
+    texturesToDestroy.push_back(m_tex_bme);
+    m_tex_bme = nullptr;
+  }
+  if (m_tex_brc) {
+    texturesToDestroy.push_back(m_tex_brc);
+    m_tex_brc = nullptr;
+  }
+  if (m_tex_bre) {
+    texturesToDestroy.push_back(m_tex_bre);
+    m_tex_bre = nullptr;
+  }
+  
+  if (m_tex_lte) {
+    texturesToDestroy.push_back(m_tex_lte);
+    m_tex_lte = nullptr;
+  }
+  if (m_tex_ltc) {
+    texturesToDestroy.push_back(m_tex_ltc);
+    m_tex_ltc = nullptr;
+  }
+  if (m_tex_lme) {
+    texturesToDestroy.push_back(m_tex_lme);
+    m_tex_lme = nullptr;
+  }
+  if (m_tex_lbc) {
+    texturesToDestroy.push_back(m_tex_lbc);
+    m_tex_lbc = nullptr;
+  }
+  if (m_tex_lbe) {
+    texturesToDestroy.push_back(m_tex_lbe);
+    m_tex_lbe = nullptr;
+  }
 
-  if (m_tex_l)
-    m_tex_l->destroyTexture();
-  if (m_tex_t)
-    m_tex_t->destroyTexture();
-  if (m_tex_b)
-    m_tex_b->destroyTexture();
-  if (m_tex_r)
-    m_tex_r->destroyTexture();
-  m_tex_tl = nullptr;
-  m_tex_tr = nullptr;
-  m_tex_br = nullptr;
-  m_tex_bl = nullptr;
-  m_tex_l = nullptr;
-  m_tex_t = nullptr;
-  m_tex_b = nullptr;
-  m_tex_r = nullptr;
-
-  m_tex_tle = nullptr;
-  m_tex_tlc = nullptr;
-  m_tex_tme = nullptr;
-  m_tex_trc = nullptr;
-  m_tex_tre = nullptr;
-
-  m_tex_rte = nullptr;
-  m_tex_rtc = nullptr;
-  m_tex_rme = nullptr;
-  m_tex_rbc = nullptr;
-  m_tex_rbe = nullptr;
-
-  m_tex_ble = nullptr;
-  m_tex_blc = nullptr;
-  m_tex_bme = nullptr;
-  m_tex_brc = nullptr;
-  m_tex_bre = nullptr;
-
-  m_tex_lte = nullptr;
-  m_tex_ltc = nullptr;
-  m_tex_lme = nullptr;
-  m_tex_lbc = nullptr;
-  m_tex_lbe = nullptr;
+  if (m_tex_l) {
+    texturesToDestroy.push_back(m_tex_l);
+    m_tex_l = nullptr;
+  }
+  if (m_tex_t) {
+    texturesToDestroy.push_back(m_tex_t);
+    m_tex_t = nullptr;
+  }
+  if (m_tex_b) {
+    texturesToDestroy.push_back(m_tex_b);
+    m_tex_b = nullptr;
+  }
+  if (m_tex_r) {
+    texturesToDestroy.push_back(m_tex_r);
+    m_tex_r = nullptr;
+  }
+  // Now safely destroy all old textures after nullifying pointers
+  for (auto& tex : texturesToDestroy) {
+    if (tex) {
+      tex->destroyTexture();
+    }
+  }
+  texturesToDestroy.clear();
 
   auto tex = ImgUtils::load(texSrcExpanded);
 

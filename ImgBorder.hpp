@@ -46,6 +46,8 @@ public:
   WP<CImgBorder> m_self;
 
 private:
+  // Helper function for safe texture rendering with UV scaling
+  void safeRenderTexture(SP<CTexture> tex, const CBox& renderBox, float dimension, bool isWidth, const float& a);
   PHLWINDOWREF m_pWindow;
 
   bool m_isEnabled;
